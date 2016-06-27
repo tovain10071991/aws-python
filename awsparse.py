@@ -30,6 +30,18 @@ def get_cursor(compile_unit, line, column):
     tmp_offset = tmp_offset + 1
   return cursor
 
+def print_cursor_children(cursor, level):
+  for i in range(0, level):
+    print " ",
+  def_spelling = None
+  def_kind = None
+  if cursor.get_definition() is not None:
+    def_spelling = cursor.get_definition().spelling
+    def_kind = cursor.get_definition().kind
+  print "%s - %s - %s - def: %s - %s" % (cursor.spelling, cursor.displayname, cursor.kind, def_spelling, def_kind)
+  for child in cursor.get_children():
+    print_cursor_children(child, level+1)
+
 class AwsParse(object):
   @staticmethod
   def print_tokens(file_name, line, column):
@@ -37,8 +49,7 @@ class AwsParse(object):
     compile_unit = get_compile_unit(file_name)
 
     cursor = get_cursor(compile_unit, line, column)
+    print_cursor_children(cursor, 1)
     
-    tokens = []
     for token in cursor.get_tokens():
-      tokens.append(token.spelling)
-    print tokens
+      print "   %s - %s" % (token.spelling, token.kind)
