@@ -25,3 +25,4 @@ if __name__ == '__main__':
     if file_name is None:
       continue
     parse_helper.print_tokens(file_name, line, column)
+    parse_helper.parse_indirect_branch(file_name, line, column)

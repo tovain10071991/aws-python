@@ -1,4 +1,4 @@
-import sys, os
+import sys, os, enum
 sys.path.append('/home/user/Documents/llvm-3.4/tools/clang/bindings/python/')
 import clang.cindex
 
@@ -53,3 +53,21 @@ class AwsParse(object):
     
     for token in cursor.get_tokens():
       print "   %s - %s" % (token.spelling, token.kind)
+      
+  @staticmethod
+  def parse_indirect_branch(file_name, line, column):
+  
+    IndirectBrKind = enum.Enum('IndirectBrKind', 'SWITCH VIRCALL CALLBACK UNKNOWN')
+  
+    assert(file_name!=None)
+    compile_unit = get_compile_unit(file_name)
+    cursor = get_cursor(compile_unit, line, column)
+    print "indirect branch kind: ", 
+    if cursor.kind is clang.cindex.CursorKind.SWITCH_STMT:
+      print IndirectBrKind.SWITCH
+    elif cursor.kind is clang.cindex.CursorKind.CALL_EXPR and cursor.get_definition().kind is clang.cindex.CursorKind.VAR_DECL:
+      print IndirectBrKind.CALLBACK
+    elif cursor.kind is clang.cindex.CursorKind.CALL_EXPR and cursor.get_definition().kind is clang.cindex.CursorKind.CXX_METHOD:
+      print IndirectBrKind.VIRCALL
+    else:
+      print IndirectBrKind.UNKNOWN
