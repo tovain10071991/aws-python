@@ -14,6 +14,7 @@ def skip_white_space(file_name, line):
     ch = fp.read(1)
     if(ch.isspace() is False):
       break
+  fp.close()
   return column
 
 class AwsDbg(object):

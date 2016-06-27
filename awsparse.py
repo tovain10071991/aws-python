@@ -1,9 +1,42 @@
-import sys, os, enum
+import sys, os, enum, pdb
 sys.path.append('/home/user/Documents/llvm-3.4/tools/clang/bindings/python/')
 import clang.cindex
 
 clang_index = clang.cindex.Index.create()
 clang_args = ['-cc1', '-triple', 'x86_64-unknown-linux-gnu', '-emit-obj', '-mrelax-all', '-disable-free', '-mrelocation-model', 'static', '-mdisable-fp-elim', '-fmath-errno', '-masm-verbose', '-mconstructor-aliases', '-munwind-tables', '-fuse-init-array', '-target-cpu', 'x86-64', '-target-linker-version', '2.24', '-g', '-resource-dir', '/home/user/Documents/llvm-3.4-build/Debug+Asserts/bin/../lib/clang/3.4', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8/x86_64-linux-gnu', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8/backward', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/x86_64-linux-gnu/c++/4.8', '-internal-isystem', '/usr/local/include', '-internal-isystem', '/home/user/Documents/llvm-3.4-build/Debug+Asserts/bin/../lib/clang/3.4/include', '-internal-externc-isystem', '/usr/include/x86_64-linux-gnu', '-internal-externc-isystem', '/include', '-internal-externc-isystem', '/usr/include', '-fdeprecated-macro', '-fdebug-compilation-dir', '/home/user/Documents/test/indirect_branch', '-ferror-limit', '19', '-fmessage-length', '97', '-mstackrealign', '-fobjc-runtime=gcc', '-fcxx-exceptions', '-fexceptions', '-fdiagnostics-show-option', '-vectorize-slp']
+
+def skip_white_space(line_content):
+  column = 1
+  while(1):
+    ch = line_content[column]
+    if(ch.isspace() is False):
+      break
+  column = column + 1      
+  return column
+
+def truncate_end_space(line_content):
+  i = len(line_content) - 1
+  while(line_content[i].isspace()):
+    i = i - 1
+  return line_content[0:i+1]
+
+def get_next_column(file_name, line, column):
+  column = column + 1
+  fp = open(file_name, 'r')
+  i = 0
+  for i in range(1, line):
+    fp.readline()
+  line_content = fp.readline()
+  line_content = truncate_end_space(line_content)
+  if(column > len(line_content)):
+    return None
+  
+  while(1):
+    ch = line_content[column-1]
+    if(ch.isspace() is False):
+      break
+  column = column + 1      
+  return column
 
 compile_unit = {}
 
@@ -30,6 +63,17 @@ def get_cursor(compile_unit, line, column):
     tmp_offset = tmp_offset + 1
   return cursor
 
+def get_cursors(compile_unit, line, column):
+  while(1):
+    column = get_next_column(compile_unit.spelling, line, column)
+    if column is None:
+      break;
+    cursor = get_cursor(compile_unit, line, column)
+    yield cursor
+    if line != cursor.extent.end.line:
+      break
+    column = cursor.extent.end.column
+
 def print_cursor_children(cursor, level):
   for i in range(0, level):
     print " ",
@@ -44,30 +88,29 @@ def print_cursor_children(cursor, level):
 
 class AwsParse(object):
   @staticmethod
-  def print_tokens(file_name, line, column):
+  def print_cursors(file_name, line, column):
     assert(file_name!=None)
     compile_unit = get_compile_unit(file_name)
 
-    cursor = get_cursor(compile_unit, line, column)
-    print_cursor_children(cursor, 1)
-    
-    for token in cursor.get_tokens():
-      print "   %s - %s" % (token.spelling, token.kind)
+    for cursor in get_cursors(compile_unit, line, column):
+      print_cursor_children(cursor, 1)
       
   @staticmethod
   def parse_indirect_branch(file_name, line, column):
   
-    IndirectBrKind = enum.Enum('IndirectBrKind', 'SWITCH VIRCALL CALLBACK UNKNOWN')
+    IndirectBrKind = enum.Enum('IndirectBrKind', 'SWITCH VIRCALL CALLBACK VIRDESTRUCT UNKNOWN')
   
     assert(file_name!=None)
     compile_unit = get_compile_unit(file_name)
-    cursor = get_cursor(compile_unit, line, column)
-    print "indirect branch kind: ", 
-    if cursor.kind is clang.cindex.CursorKind.SWITCH_STMT:
-      print IndirectBrKind.SWITCH
-    elif cursor.kind is clang.cindex.CursorKind.CALL_EXPR and cursor.get_definition().kind is clang.cindex.CursorKind.VAR_DECL:
-      print IndirectBrKind.CALLBACK
-    elif cursor.kind is clang.cindex.CursorKind.CALL_EXPR and cursor.get_definition().kind is clang.cindex.CursorKind.CXX_METHOD:
-      print IndirectBrKind.VIRCALL
-    else:
-      print IndirectBrKind.UNKNOWN
+    for cursor in get_cursors(compile_unit, line, column):
+      print "indirect branch kind: ",
+      if cursor.kind is clang.cindex.CursorKind.SWITCH_STMT:
+        print IndirectBrKind.SWITCH
+      elif cursor.kind is clang.cindex.CursorKind.CALL_EXPR and cursor.referenced.kind is clang.cindex.CursorKind.VAR_DECL:
+        print IndirectBrKind.CALLBACK
+      elif cursor.kind is clang.cindex.CursorKind.CALL_EXPR and cursor.referenced.kind is clang.cindex.CursorKind.CXX_METHOD:
+        print IndirectBrKind.VIRCALL
+      elif cursor.kind is clang.cindex.CursorKind.CXX_DELETE_EXPR:
+        print IndirectBrKind.VIRDESTRUCT
+      else:
+        print IndirectBrKind.UNKNOWN
