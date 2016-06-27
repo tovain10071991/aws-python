@@ -1,0 +1,8 @@
+import sys
+sys.path.append('/home/user/Documents/llvm-3.4/tools/clang/bindings/python/')
+import clang.cindex
+
+class AwsParse(object):
+  def __init__(self):
+    clang_index = clang.cindex.Index.create()
+    clang_args = ['-cc1', '-triple', 'x86_64-unknown-linux-gnu', '-emit-obj', '-mrelax-all', '-disable-free', '-mrelocation-model', 'static', '-mdisable-fp-elim', '-fmath-errno', '-masm-verbose', '-mconstructor-aliases', '-munwind-tables', '-fuse-init-array', '-target-cpu', 'x86-64', '-target-linker-version', '2.24', '-g', '-resource-dir', '/home/user/Documents/llvm-3.4-build/Debug+Asserts/bin/../lib/clang/3.4', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8/x86_64-linux-gnu', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8/backward', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/x86_64-linux-gnu/c++/4.8', '-internal-isystem', '/usr/local/include', '-internal-isystem', '/home/user/Documents/llvm-3.4-build/Debug+Asserts/bin/../lib/clang/3.4/include', '-internal-externc-isystem', '/usr/include/x86_64-linux-gnu', '-internal-externc-isystem', '/include', '-internal-externc-isystem', '/usr/include', '-fdeprecated-macro', '-fdebug-compilation-dir', '/home/user/Documents/test/indirect_branch', '-ferror-limit', '19', '-fmessage-length', '97', '-mstackrealign', '-fobjc-runtime=gcc', '-fcxx-exceptions', '-fexceptions', '-fdiagnostics-show-option', '-vectorize-slp']
