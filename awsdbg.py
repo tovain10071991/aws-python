@@ -2,6 +2,20 @@ import sys
 sys.path.append('/home/user/Documents/llvm-3.4-build/Debug+Asserts/lib/python2.7/site-packages/')
 import lldb
 
+def skip_white_space(file_name, line):
+  fp = open(file_name, 'r')
+  i = 0
+  for i in range(1, line):
+    fp.readline()
+  i = i+1
+  column = 0
+  while(1):
+    column = column + 1
+    ch = fp.read(1)
+    if(ch.isspace() is False):
+      break
+  return column
+
 class AwsDbg(object):
   def __init__(self, executable):
     lldb.SBDebugger.Initialize()
@@ -19,7 +33,7 @@ class AwsDbg(object):
   def __del__(self):
     lldb.SBDebugger.Destroy(self.debugger)
   
-  def get_source_code(self, address):
+  def print_source_code(self, address):
     load_addr = lldb.SBAddress(address, self.target)
     line_entry = load_addr.GetLineEntry()
     if(line_entry.GetFileSpec().IsValid()):
@@ -29,3 +43,15 @@ class AwsDbg(object):
       print('%s' % stream.GetData())
     else:
       print("   have no debug info")
+  
+  def get_location(self, address):
+    load_addr = lldb.SBAddress(address, self.target)
+    line_entry = load_addr.GetLineEntry()
+    if line_entry.IsValid():
+      file_name = str(line_entry.GetFileSpec().GetDirectory()) + '/' + str(line_entry.GetFileSpec().GetFilename())
+      line = line_entry.GetLine()
+      assert(line_entry.GetColumn() == 0)
+      column = skip_white_space(file_name, line)
+      return (file_name, line, column)
+    else:
+      return (None, 0, 0)
