@@ -25,11 +25,12 @@ class AwsDbg(object):
     
     self.target = self.debugger.CreateTargetWithFileAndArch(executable, lldb.LLDB_ARCH_DEFAULT)
     assert(self.target.IsValid())
-    main_bp = self.target.BreakpointCreateByName('main', self.target.GetExecutable().GetFilename())
-    assert(main_bp.IsValid())
-    error = lldb.SBError()
-    self.target.Launch(lldb.SBLaunchInfo(None), error)
-    assert(error.Success())
+    # main_bp = self.target.BreakpointCreateByName('main', self.target.GetExecutable().GetFilename())
+    # assert(main_bp.IsValid())
+    # error = lldb.SBError()
+    # self.target.Launch(lldb.SBLaunchInfo(None), error)
+    # assert(error.Success())
+    self.target.SetModuleLoadAddress(self.target.FindModule(self.target.GetExecutable()), 0)
   
   def __del__(self):
     lldb.SBDebugger.Destroy(self.debugger)
@@ -40,7 +41,7 @@ class AwsDbg(object):
     if(line_entry.GetFileSpec().IsValid()):
       stream = lldb.SBStream()
       src_mgr = self.debugger.GetSourceManager()
-      src_mgr.DisplaySourceLinesWithLineNumbers(line_entry.GetFileSpec(), line_entry.GetLine(), 2, 2, '=>', stream)
+      src_mgr.DisplaySourceLinesWithLineNumbers(line_entry.GetFileSpec(), line_entry.GetLine(), 1, 1, '=>', stream)
       print('%s' % stream.GetData())
     else:
       print("   have no debug info")

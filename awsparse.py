@@ -1,9 +1,9 @@
 import sys, os, enum, pdb
 sys.path.append('/home/user/Documents/llvm-3.4/tools/clang/bindings/python/')
 import clang.cindex
-
+from clangargs import clang_args
 clang_index = clang.cindex.Index.create()
-clang_args = ['-cc1', '-triple', 'x86_64-unknown-linux-gnu', '-emit-obj', '-mrelax-all', '-disable-free', '-mrelocation-model', 'static', '-mdisable-fp-elim', '-fmath-errno', '-masm-verbose', '-mconstructor-aliases', '-munwind-tables', '-fuse-init-array', '-target-cpu', 'x86-64', '-target-linker-version', '2.24', '-g', '-resource-dir', '/home/user/Documents/llvm-3.4-build/Debug+Asserts/bin/../lib/clang/3.4', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8/x86_64-linux-gnu', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8/backward', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/x86_64-linux-gnu/c++/4.8', '-internal-isystem', '/usr/local/include', '-internal-isystem', '/home/user/Documents/llvm-3.4-build/Debug+Asserts/bin/../lib/clang/3.4/include', '-internal-externc-isystem', '/usr/include/x86_64-linux-gnu', '-internal-externc-isystem', '/include', '-internal-externc-isystem', '/usr/include', '-fdeprecated-macro', '-fdebug-compilation-dir', '/home/user/Documents/test/indirect_branch', '-ferror-limit', '19', '-fmessage-length', '97', '-mstackrealign', '-fobjc-runtime=gcc', '-fcxx-exceptions', '-fexceptions', '-fdiagnostics-show-option', '-vectorize-slp']
+# clang_args = ['-cc1', '-triple', 'x86_64-unknown-linux-gnu', '-emit-obj', '-mrelax-all', '-disable-free', '-mrelocation-model', 'static', '-mdisable-fp-elim', '-fmath-errno', '-masm-verbose', '-mconstructor-aliases', '-munwind-tables', '-fuse-init-array', '-target-cpu', 'x86-64', '-target-linker-version', '2.24', '-g', '-resource-dir', '/home/user/Documents/llvm-3.4-build/Debug+Asserts/bin/../lib/clang/3.4', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8/x86_64-linux-gnu', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8/backward', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/x86_64-linux-gnu/c++/4.8', '-internal-isystem', '/usr/local/include', '-internal-isystem', '/home/user/Documents/llvm-3.4-build/Debug+Asserts/bin/../lib/clang/3.4/include', '-internal-externc-isystem', '/usr/include/x86_64-linux-gnu', '-internal-externc-isystem', '/include', '-internal-externc-isystem', '/usr/include', '-fdeprecated-macro', '-fdebug-compilation-dir', '/home/user/Documents/test/indirect_branch', '-ferror-limit', '19', '-fmessage-length', '97', '-mstackrealign', '-fobjc-runtime=gcc', '-fcxx-exceptions', '-fexceptions', '-fdiagnostics-show-option', '-vectorize-slp']
 
 def skip_white_space(line_content):
   column = 1
@@ -35,7 +35,7 @@ def get_next_column(file_name, line, column):
     ch = line_content[column-1]
     if(ch.isspace() is False):
       break
-  column = column + 1      
+    column = column + 1
   return column
 
 compile_unit = {}
@@ -50,12 +50,19 @@ def get_compile_unit(source_file):
       os.abort()
   return compile_unit[source_file]
 
-def get_cursor(compile_unit, line, column):
-  src_loc = clang.cindex.SourceLocation.from_position(compile_unit, compile_unit.get_file(compile_unit.spelling), line, column)
+def get_cursor(file_name, line, column):
+  compile_unit = get_compile_unit(file_name)
+  src_loc = clang.cindex.SourceLocation.from_position(compile_unit, compile_unit.get_file(file_name), line, column)
+  print "%d: %d" % (line, column)  
   cursor = clang.cindex.Cursor.from_location(compile_unit, src_loc)
   tmp_offset = cursor.extent.end.offset
+  print "%s: %d" % (file_name, tmp_offset)
+  # if(tmp_offset == 0):
+    # pdb.set_trace()
+    # cursor = clang.cindex.Cursor.from_location(compile_unit, src_loc)
+    
   while(1):
-    tmp_src_loc = clang.cindex.SourceLocation.from_offset(compile_unit, compile_unit.get_file(compile_unit.spelling), tmp_offset)
+    tmp_src_loc = clang.cindex.SourceLocation.from_offset(compile_unit, compile_unit.get_file(file_name), tmp_offset)
     tmp_cursor = clang.cindex.Cursor.from_location(compile_unit, tmp_src_loc)
     if tmp_cursor.extent.start != cursor.extent.start:
       break
@@ -63,12 +70,12 @@ def get_cursor(compile_unit, line, column):
     tmp_offset = tmp_offset + 1
   return cursor
 
-def get_cursors(compile_unit, line, column):
+def get_cursors(file_name, line, column):
   while(1):
-    column = get_next_column(compile_unit.spelling, line, column)
+    column = get_next_column(file_name, line, column)
     if column is None:
       break;
-    cursor = get_cursor(compile_unit, line, column)
+    cursor = get_cursor(file_name, line, column)
     yield cursor
     if line != cursor.extent.end.line:
       break
@@ -90,9 +97,7 @@ class AwsParse(object):
   @staticmethod
   def print_cursors(file_name, line, column):
     assert(file_name!=None)
-    compile_unit = get_compile_unit(file_name)
-
-    for cursor in get_cursors(compile_unit, line, column):
+    for cursor in get_cursors(file_name, line, column):
       print_cursor_children(cursor, 1)
       
   @staticmethod
@@ -101,8 +106,7 @@ class AwsParse(object):
     IndirectBrKind = enum.Enum('IndirectBrKind', 'SWITCH VIRCALL CALLBACK VIRDESTRUCT UNKNOWN')
   
     assert(file_name!=None)
-    compile_unit = get_compile_unit(file_name)
-    for cursor in get_cursors(compile_unit, line, column):
+    for cursor in get_cursors(file_name, line, column):
       print "indirect branch kind: ",
       if cursor.kind is clang.cindex.CursorKind.SWITCH_STMT:
         print IndirectBrKind.SWITCH

@@ -18,11 +18,22 @@ parse_helper = AwsParse()
 dis_helper = AwsDis()
 
 if __name__ == '__main__':
-  for inst in dis_helper.iterate_indiret_branch(elf_helper.text_sec.content, elf_helper.text_sec.start_addr):
-    print("0x%x %s %s" %(inst.address, inst.mnemonic, inst.op_str))
-    dbg_helper.print_source_code(inst.address)
-    file_name, line, column = dbg_helper.get_location(inst.address)
-    if file_name is None:
-      continue
-    parse_helper.print_cursors(file_name, line, column)
-    parse_helper.parse_indirect_branch(file_name, line, column)
+  offset = elf_helper.text_sec.start_off
+  address = elf_helper.text_sec.start_addr
+  while(1):
+    content = elf_helper.text_sec.get_content(offset)
+    if content is None:
+      break
+    # pdb.set_trace()
+    inst, inst_size = dis_helper.get_inst(content, address)
+    if inst is None:
+      break
+    if(dis_helper.is_indirect_branch(inst)):
+      print("0x%x %s %s" %(inst.address, inst.mnemonic, inst.op_str))
+      dbg_helper.print_source_code(inst.address)
+      file_name, line, column = dbg_helper.get_location(inst.address)
+      if file_name is not None:
+        parse_helper.print_cursors(file_name, line, column)
+        parse_helper.parse_indirect_branch(file_name, line, column)
+    offset = offset + inst_size
+    address = address + inst_size
