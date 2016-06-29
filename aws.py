@@ -29,11 +29,16 @@ if __name__ == '__main__':
     if inst is None:
       break
     if(dis_helper.is_indirect_branch(inst)):
-      print("0x%x %s %s" %(inst.address, inst.mnemonic, inst.op_str))
-      dbg_helper.print_source_code(inst.address)
+      output = "0x%x\n" % inst.address
+      sys.stderr.write(output)
+      # sys.stderr.flush()
       file_name, line, column = dbg_helper.get_location(inst.address)
       if file_name is not None:
-        parse_helper.print_cursors(file_name, line, column)
-        parse_helper.parse_indirect_branch(file_name, line, column)
+        if parse_helper.parse_indirect_branch(file_name, line, column) is False:
+          print("0x%x %s %s" %(inst.address, inst.mnemonic, inst.op_str))
+          dbg_helper.print_source_code(inst.address)
+          print "%s: %d, %d" % (file_name, line, column)
+          parse_helper.print_cursors(file_name, line, column)
     offset = offset + inst_size
     address = address + inst_size
+  sys.stderr.write("done!\n")
