@@ -3,7 +3,7 @@ sys.path.append('/home/user/Documents/llvm-3.4/tools/clang/bindings/python/')
 import clang.cindex
 from clangargs import clang_args, h_args
 clang_index = clang.cindex.Index.create()
-# clang_args = ['-cc1', '-triple', 'x86_64-unknown-linux-gnu', '-emit-obj', '-mrelax-all', '-disable-free', '-mrelocation-model', 'static', '-mdisable-fp-elim', '-fmath-errno', '-masm-verbose', '-mconstructor-aliases', '-munwind-tables', '-fuse-init-array', '-target-cpu', 'x86-64', '-target-linker-version', '2.24', '-g', '-resource-dir', '/home/user/Documents/llvm-3.4-build/Debug+Asserts/bin/../lib/clang/3.4', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8/x86_64-linux-gnu', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8/backward', '-internal-isystem', '/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/x86_64-linux-gnu/c++/4.8', '-internal-isystem', '/usr/local/include', '-internal-isystem', '/home/user/Documents/llvm-3.4-build/Debug+Asserts/bin/../lib/clang/3.4/include', '-internal-externc-isystem', '/usr/include/x86_64-linux-gnu', '-internal-externc-isystem', '/include', '-internal-externc-isystem', '/usr/include', '-fdeprecated-macro', '-fdebug-compilation-dir', '/home/user/Documents/test/indirect_branch', '-ferror-limit', '19', '-fmessage-length', '97', '-mstackrealign', '-fobjc-runtime=gcc', '-fcxx-exceptions', '-fexceptions', '-fdiagnostics-show-option', '-vectorize-slp']
+import awsctags
 
 def skip_white_space(line_content):
   column = 1
@@ -36,6 +36,17 @@ def get_next_column(file_name, line, column):
     if(ch.isspace() is False):
       break
     column = column + 1
+  return column
+
+def get_end_column(file_name, line):
+  fp = open(file_name, 'r')
+  i = 0
+  for i in range(1, line):
+    fp.readline()
+  line_content = fp.readline()
+  line_content = truncate_end_space(line_content)
+  column = len(line_content)
+  fp.close()
   return column
 
 compile_unit = {}
@@ -151,8 +162,9 @@ def print_cursor_children(cursor, level):
   for child in cursor.get_children():
     print_cursor_children(child, level+1)
 
+IndirectBrKind = enum.Enum('IndirectBrKind', 'SWITCH VIRCALL CALLBACK VIRDESTRUCT UNKNOWN UNSUPPORTTED MAYVIRCALL MAYVIRDESTRUCT')
+
 def parse_indirect_branch(cursor):
-  IndirectBrKind = enum.Enum('IndirectBrKind', 'SWITCH VIRCALL CALLBACK VIRDESTRUCT UNKNOWN UNSUPPORTTED')
   # pdb.set_trace()
   if cursor.kind is clang.cindex.CursorKind.RETURN_STMT or cursor.kind is clang.cindex.CursorKind.DECL_STMT or cursor.kind is clang.cindex.CursorKind.VAR_DECL or cursor.kind is clang.cindex.CursorKind.UNARY_OPERATOR or cursor.kind is clang.cindex.CursorKind.COMPOUND_STMT or cursor.kind is clang.cindex.CursorKind.UNEXPOSED_EXPR or cursor.kind is clang.cindex.CursorKind.IF_STMT or cursor.kind is clang.cindex.CursorKind.BINARY_OPERATOR or cursor.kind is clang.cindex.CursorKind.CONDITIONAL_OPERATOR or cursor.kind is clang.cindex.CursorKind.PAREN_EXPR or cursor.kind is clang.cindex.CursorKind.CASE_STMT or cursor.kind is clang.cindex.CursorKind.CXX_REINTERPRET_CAST_EXPR or cursor.kind is clang.cindex.CursorKind.MEMBER_REF_EXPR:
     ret = False
@@ -161,7 +173,8 @@ def parse_indirect_branch(cursor):
         ret = True
     return ret
   elif cursor.kind is clang.cindex.CursorKind.SWITCH_STMT:
-    # print "indirect branch kind: %s" % IndirectBrKind.SWITCH
+    output = "indirect branch kind: %s" % IndirectBrKind.SWITCH
+    sys.stderr.write(output + '\n')
     return True
   elif cursor.kind is clang.cindex.CursorKind.CALL_EXPR and cursor.referenced is not None and (cursor.referenced.kind is clang.cindex.CursorKind.VAR_DECL or cursor.referenced.kind is clang.cindex.CursorKind.FIELD_DECL or cursor.referenced.kind is clang.cindex.CursorKind.PARM_DECL):
     output = "indirect branch kind: %s" % IndirectBrKind.CALLBACK
@@ -201,6 +214,46 @@ def parse_indirect_branch(cursor):
     # print "indirect branch kind: %s" % IndirectBrKind.UNKNOWN
     return False
 
+def parse_indirect_branch_by_tokens(file_name, line, column):
+  output = "getting compile unit: %s ..." % file_name
+  sys.stderr.write(output + '\n')
+  compile_unit = get_compile_unit(file_name)
+  if compile_unit is None:
+    return False
+  sys.stderr.write('getting done\n')
+  src_start = clang.cindex.SourceLocation.from_position(compile_unit, compile_unit.get_file(file_name), line, column)
+  src_end = clang.cindex.SourceLocation.from_position(compile_unit, compile_unit.get_file(file_name), line, get_end_column(file_name, line))
+  src_ext = clang.cindex.SourceRange.from_locations(src_start, src_end)
+  tokens = compile_unit.get_tokens(extent = src_ext)
+  for token in tokens:
+    if token.spelling == 'switch':
+      output = "indirect branch kind: %s" % IndirectBrKind.SWITCH
+      sys.stderr.write(output + '\n')
+      return True
+    # elif token.spelling == 'return':
+      # pass
+    elif token.spelling == 'delete':
+      output = "indirect branch kind: %s" % IndirectBrKind.MAYVIRDESTRUCT
+      sys.stderr.write(output + '\n')
+      return True
+    elif token.kind is clang.cindex.TokenKind.IDENTIFIER:
+      if awsctags.is_virtual(token.spelling) is True:
+        output = "indirect branch kind: %s" % IndirectBrKind.MAYVIRCALL
+        sys.stderr.write(output + '\n')
+        return True
+    # elif token.spelling == '->':
+      # try:
+        # token = tokens.next()
+        # if token.kind is clang.cindex.TokenKind.IDENTIFIER:
+          # token = tokens.next()
+          # if token.spelling == '(':
+            # output = "indirect branch kind: %s" % IndirectBrKind.MAYVIRCALL
+            # sys.stderr.write(output + '\n')
+            # return True
+      # except StopIteration:
+        # pass
+  return False
+
 class AwsParse(object):
   @staticmethod
   def print_cursors(file_name, line, column):
@@ -220,4 +273,8 @@ class AwsParse(object):
         ret = True
       if ret is False:
         print "the result of parsing cursor is IndirectBrKind.UNKNOWN\n\t%s: %d, %d - %d, %d" % (file_name, cursor.extent.start.line, cursor.extent.start.column, cursor.extent.end.line, cursor.extent.end.column)
+    if ret is False:
+      ret = parse_indirect_branch_by_tokens(file_name, line, column)
+      if ret is False:
+        print "the result of parsing tokens is IndirectBrKind.UNKNOWN\n\t%s: %d, %d" % (file_name, line, column)
     return ret
