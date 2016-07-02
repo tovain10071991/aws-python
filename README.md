@@ -1,8 +1,8 @@
 # aws-python
 
-this tool is used for analyzing the kind of indirect branches in a binary executable.
+This tool is used for analyzing the kind of indirect branches in a binary executable.
 
-execute like below:
+Execute like below:
 
     $ python ./aws.py -b /path/to/some/program
 
