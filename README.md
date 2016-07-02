@@ -31,7 +31,7 @@ When meeting a indiret branch, get source line by lldb. iterate cursors in this 
 
 The kind of indirect branches is: virtual call, virtual destructor, call back, switch and other(refer to enum IndirectBrKind in awsparse.py).
 
-If parsing cursors is fault, then parse tokens.
+If parsing cursors is fault, then parse tokens using python-ctags.
 
 Some kind enum value the prefix of which is "MAY" is obtained by parsing tokens.
 
