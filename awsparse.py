@@ -1,7 +1,7 @@
 import sys, os, enum, pdb, collections
-sys.path.append('/home/user/Documents/llvm-3.4/tools/clang/bindings/python/')
+sys.path.append('/home/user/Documents/llvm-3.8.0.src/tools/clang/bindings/python/')
 import clang.cindex
-from clangargs import clang_args, h_args
+from nginxargs import get_nginx_args
 clang_index = clang.cindex.Index.create()
 import awsctags
 
@@ -51,7 +51,7 @@ def get_end_column(file_name, line):
 
 compile_unit = {}
 recent_unit = collections.deque()
-ast_cache_dir = '/mnt/sdb/test/analysis_indirect_branch_compare_with_source/ast/'
+ast_cache_dir = '/mnt/sdb/test/analysis_indirect_branch_compare_with_source/nginx-ast/'
 
 def convert_to_ast(file_name):
   list = file_name.split('/')
@@ -79,7 +79,7 @@ def get_compile_unit(source_file):
         sys.stderr.write('reading done\n')
         recent_unit.append(source_file)
         return compile_unit[source_file]
-      except:
+      except clang.cindex.TranslationUnitLoadError as e:
         output = "an error occurred when reading ast and try parsing: %s\n" % e
         sys.stderr.write(output)
     sys.stderr.write("reading ast failed and try parsing\n")
@@ -87,17 +87,16 @@ def get_compile_unit(source_file):
       output = "parsing source file: %s ..." % source_file
       sys.stderr.write(output + '\n')
       # sys.stderr.flush()
-      args = []
-      if(source_file in clang_args):
-        args = clang_args[source_file]
-      elif(source_file[-2:] == '.h'):
-        args = h_args
-      elif(source_file[-4:] == '.inc'):
-        return None
-      else:
-        output = "clang_args not found: %s ..." % source_file
-        sys.stderr.write(output + '\n')
-        os.abort()
+      args = get_nginx_args(source_file)
+      if args is None:
+        if(source_file[-2:] == '.h'):
+          args = get_nginx_args(source_file) # h_args
+        elif(source_file[-4:] == '.inc'):
+          return None
+        else:
+          output = "clang_args not found: %s ..." % source_file
+          sys.stderr.write(output + '\n')
+          os.abort()
       compile_unit[source_file] = clang_index.parse(source_file, args, options =   clang.cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD)
       sys.stderr.write('parsing done\n')
       assert(not os.access(ast_file, os.F_OK))
@@ -162,7 +161,7 @@ def print_cursor_children(cursor, level):
   for child in cursor.get_children():
     print_cursor_children(child, level+1)
 
-IndirectBrKind = enum.Enum('IndirectBrKind', 'SWITCH VIRCALL CALLBACK VIRDESTRUCT UNKNOWN UNSUPPORTTED MAYVIRCALL MAYVIRDESTRUCT')
+IndirectBrKind = enum.Enum('IndirectBrKind', 'SWITCH VIRCALL CALLBACK VIRDESTRUCT UNKNOWN UNSUPPORTTED MAYVIRCALL MAYVIRDESTRUCT MAYCALLBACK')
 
 def parse_indirect_branch(cursor):
   # pdb.set_trace()
@@ -241,6 +240,10 @@ def parse_indirect_branch_by_tokens(file_name, line, column):
         output = "indirect branch kind: %s" % IndirectBrKind.MAYVIRCALL
         sys.stderr.write(output + '\n')
         return True
+      elif awsctags.is_funcptr(token.spelling) is True:
+        output = "indirect branch kind: %s" % IndirectBrKind.MAYCALLBACK
+        sys.stderr.write(output + '\n')
+        return True
     # elif token.spelling == '->':
       # try:
         # token = tokens.next()
@@ -263,6 +266,7 @@ class AwsParse(object):
       
   @staticmethod
   def parse_indirect_branch(file_name, line, column):
+    # pdb.set_trace()
     assert(file_name!=None)
     ret = False
     for cursor in get_cursors(file_name, line, column):

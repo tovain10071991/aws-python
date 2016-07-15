@@ -1,0 +1,2 @@
+def get_nginx_args(file_name):
+  return ['-c', '-pipe', '-O', '-W', '-Wall', '-Wpointer-arith', '-Wno-unused-parameter', '-Werror', '-g',  '-I', 'src/core', '-I', 'src/event', '-I', 'src/event/modules', '-I', 'src/os/unix', '-I', 'objs', '-I', 'src/http', '-I', 'src/http/modules']

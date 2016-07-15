@@ -39,6 +39,7 @@ if __name__ == '__main__':
       sys.stderr.write(output)
       # sys.stderr.flush()
       file_name, line, column = dbg_helper.get_location(inst.address)
+      # pdb.set_trace()
       if file_name is not None:
         if parse_helper.parse_indirect_branch(file_name, line, column) is False:
           sys.stderr.write('indirect branch kind: IndirectBrKind.UNKNOWN\n')
